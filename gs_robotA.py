@@ -11,18 +11,18 @@ from keras.layers import Dense,Flatten
 import cmath
 
 STATE_LENGTH = 4  # Number of most recent frames to produce the input to the network
-GAMMA = 0.98  # Discount factor
-EXPLORATION_STEPS = 36000  # Number of steps over which the initial value of epsilon is linearly annealed to its final value
+GAMMA = 0.97  # Discount factor
+EXPLORATION_STEPS = 50000  # Number of steps over which the initial value of epsilon is linearly annealed to its final value
 INITIAL_EPSILON = 1.0  # Initial value of epsilon in epsilon-greedy
 FINAL_EPSILON = 0.1  # Final value of epsilon in epsilon-greedy
 INITIAL_REPLAY_SIZE = 300  # Number of steps to populate the replay memory before training starts
 NUM_REPLAY_MEMORY = 1000000  # Number of replay memory the agent uses for training
 BATCH_SIZE = 32  # Mini batch size
-TARGET_UPDATE_INTERVAL = 500  # The frequency with which the target network is updated
+TARGET_UPDATE_INTERVAL = 1000  # The frequency with which the target network is updated
 TRAIN_INTERVAL = 1  # The agent selects 4 actions between successive updates
-LEARNING_RATE = 0.0025  # Learning rate used by RMSProp
-MOMENTUM = 0.95  # Momentum used by RMSProp
-MIN_GRAD = 0.01  # Constant added to the squared gradient in the denominator of the RMSProp update
+LEARNING_RATE = 0.002 # Learning rate used by RMSProp
+MOMENTUM = 0.9  # Momentum used by RMSProp
+MIN_GRAD = 0.000001  # Constant added to the squared gradient in the denominator of the RMSProp update
 TRAIN = True
 NUM_ACTIONS=7
 
@@ -97,8 +97,11 @@ class Agent():
 
         if self.epsilon >= random.random() or self.n < INITIAL_REPLAY_SIZE:
             action = random.randrange(NUM_ACTIONS)
+            print self.n,
+            print "random action"
         else:
             action = np.argmax(self.q_values.eval(feed_dict={self.s: [state]}))
+            print self.n
 
         if self.epsilon > FINAL_EPSILON:
             self.epsilon -= self.epsilon_step
@@ -124,6 +127,7 @@ class Agent():
                 self.sess.run(self.update_target_network)
 
         self.n += 1
+
 
         return next_state
 
@@ -151,7 +155,7 @@ class Agent():
             self.y: y_batch
         })
       
-        print loss 
+        print loss, 
 
 class gs_robot_physical_env():
     def __init__(self):
@@ -181,9 +185,9 @@ class gs_robot_physical_env():
         
         tmpTh = self.th_old + T_STEP * ( thD + self.thD_old ) / 2.0
 
-#       [theta = a] is equivalent to [theta = a + 2*n*Pi]. I do this way to use accel data but to avoid the problem of plural theta values.
+#       I wanted to write simply as [ th = 0.98 * tmpTh + 0.02 * atan( ay / ax ) ]. This is called complimentary filter. But angle has many ways to be expressed( ie. plus minus 2*n*Pi ), and this is not good because atan jumps up and down at some point. So I write the following way.
 
-        deltaTh = cmath.phase( complex(ax,ay)/cmath.rect(1.0,tmpTh) )
+        deltaTh = cmath.phase( complex(ax,ay) / cmath.rect(1.0,tmpTh) )
         
         th = 0.98 * tmpTh + 0.02 * ( tmpTh + deltaTh)
 
@@ -202,6 +206,13 @@ class gs_robot_physical_env():
     
         if self.motor_cmd < 0.0:
            self.motor_cmd = 0.0
+
+    def calculate_reward(self,theta):
+        
+        if theta >= 0.0:
+           return theta * 5.0
+        else:
+           return theta
 
     def step(self,action,initial=False):
 
@@ -240,7 +251,9 @@ class gs_robot_physical_env():
  
         observation = [theta, thD, self.motor_cmd, self.motor_speed]
 
-        reward = theta
+        print observation, self.error1, self.error2
+
+        reward = self.calculate_reward(theta)
 
         self.iii = sp1[6]
         self.timeA = sp1[9] 
@@ -265,13 +278,11 @@ def main():
 
     state = initial_prepare(env)
 
-    for _ in range(EXPLORATION_STEPS):
+    for _ in range(360000):
  
         action = agent.get_action(state)
         observation, reward = env.step(action)
         
-        print observation        
-       
         state = agent.run(state, action, reward, observation)
         
 if __name__ == '__main__':
