@@ -168,6 +168,9 @@ class gs_robot_physical_env():
         self.F1 = 48.5
         self.E1 = 1663.0
 
+        self.L1 = 0.116
+        self.L2 = 0.11
+
         self.thD_old = 0.0
         self.th_old = 0.0
 
@@ -207,12 +210,16 @@ class gs_robot_physical_env():
         if self.motor_cmd < 0.0:
            self.motor_cmd = 0.0
 
-    def calculate_reward(self,theta):
+    def calculate_reward(self,theta,motor_angle):
+
+        th1 = ( 960.0 - motor_angle ) * 3.14159 / 960.0 / 2.0
         
-        if theta >= 0.0:
-           return theta * 5.0
+        tmp_reward = theta + cmath.phase( complex( self.L1, 0.0 ) + cmath.rect( self.L2, th1 ) )
+
+        if tmp_reward >= 0.0:
+           return tmp_reward
         else:
-           return theta
+           return -tmp_reward
 
     def step(self,action,initial=False):
 
@@ -251,13 +258,14 @@ class gs_robot_physical_env():
  
         observation = [theta, thD, self.motor_cmd, self.motor_speed]
 
-        print observation, self.error1, self.error2
 
-        reward = self.calculate_reward(theta)
+        reward = self.calculate_reward(theta, self.motor_cmd)
 
         self.iii = sp1[6]
         self.timeA = sp1[9] 
 
+        print observation, self.error1, self.error2, t_delta
+        
         return observation, reward
 
 def initial_prepare(env):
